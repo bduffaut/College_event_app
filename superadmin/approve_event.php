@@ -1,5 +1,9 @@
+
+
 <?php
 include '../auth/session.php';
+include '../assets/navbar.php';
+
 include '../db/connect.php';
 
 if ($_SESSION["role"] !== "superadmin") {
@@ -14,18 +18,17 @@ if (isset($_GET['approve'])) {
     $stmt->bind_param("i", $event_id);
     $stmt->execute();
     $stmt->close();
-    echo "<p>✅ Event ID $event_id approved successfully!</p>";
+    echo "<p class='success'>✅ Event ID $event_id approved successfully!</p>";
 }
 
-
-// ❌ Decline (set status)
+// ❌ Decline
 if (isset($_GET['decline'])) {
     $event_id = intval($_GET['decline']);
     $stmt = $conn->prepare("UPDATE Events SET status = 'declined' WHERE event_id = ?");
     $stmt->bind_param("i", $event_id);
     $stmt->execute();
     $stmt->close();
-    echo "<p>❌ Event ID $event_id was declined.</p>";
+    echo "<p class='warning'>❌ Event ID $event_id was declined.</p>";
 }
 
 // 🗑 Delete
@@ -35,10 +38,10 @@ if (isset($_GET['delete'])) {
     $stmt->bind_param("i", $event_id);
     $stmt->execute();
     $stmt->close();
-    echo "<p>🗑 Event ID $event_id was permanently deleted.</p>";
+    echo "<p class='error'>🗑 Event ID $event_id was permanently deleted.</p>";
 }
 
-// 🔍 Load pending public events
+// Load events
 $pendingEvents = $conn->query("
     SELECT Events.*, Locations.name AS location_name, Locations.address AS location_address
     FROM Events
@@ -47,7 +50,6 @@ $pendingEvents = $conn->query("
     ORDER BY event_date, start_time
 ");
 
-// 🔍 Load declined events
 $declinedEvents = $conn->query("
     SELECT Events.*, Locations.name AS location_name, Locations.address AS location_address
     FROM Events
@@ -56,11 +58,20 @@ $declinedEvents = $conn->query("
     ORDER BY event_date, start_time
 ");
 ?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Approve Events</title>
+    <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
 
+<div class="container">
 <h2>Pending Public Events for Approval</h2>
 
 <?php if ($pendingEvents->num_rows > 0): ?>
-    <table border="1" cellpadding="6">
+    <table>
         <tr>
             <th>Name</th>
             <th>Date</th>
@@ -82,9 +93,9 @@ $declinedEvents = $conn->query("
                     <?= $event['location_address'] !== null ? htmlspecialchars($event['location_address']) : 'N/A' ?>
                 </td>
                 <td>
-                    <a href="?approve=<?= $event['event_id'] ?>" onclick="return confirm('Approve this event?')">✅ Approve</a><br>
-                    <a href="?decline=<?= $event['event_id'] ?>" onclick="return confirm('Decline this event?')">❌ Decline</a><br>
-                    <a href="?delete=<?= $event['event_id'] ?>" onclick="return confirm('PERMANENTLY delete this event?')">🗑 Delete</a>
+                    <a href="?approve=<?= $event['event_id'] ?>" class="btn" onclick="return confirm('Approve this event?')">✅ Approve</a><br>
+                    <a href="?decline=<?= $event['event_id'] ?>" class="btn btn-secondary" onclick="return confirm('Decline this event?')">❌ Decline</a><br>
+                    <a href="?delete=<?= $event['event_id'] ?>" class="btn btn-danger" onclick="return confirm('PERMANENTLY delete this event?')">🗑 Delete</a>
                 </td>
             </tr>
         <?php endwhile; ?>
@@ -93,11 +104,10 @@ $declinedEvents = $conn->query("
     <p>No pending public events.</p>
 <?php endif; ?>
 
-<br><br>
-<h2>Declined Public Events</h2>
+<h2 style="margin-top: 40px;">Declined Public Events</h2>
 
 <?php if ($declinedEvents->num_rows > 0): ?>
-    <table border="1" cellpadding="6">
+    <table>
         <tr>
             <th>Name</th>
             <th>Date</th>
@@ -119,7 +129,7 @@ $declinedEvents = $conn->query("
                     <?= htmlspecialchars($event['location_address']) ?>
                 </td>
                 <td>
-                    <a href="?delete=<?= $event['event_id'] ?>" onclick="return confirm('Delete this declined event?')">🗑 Delete</a>
+                    <a href="?delete=<?= $event['event_id'] ?>" class="btn btn-danger" onclick="return confirm('Delete this declined event?')">🗑 Delete</a>
                 </td>
             </tr>
         <?php endwhile; ?>
@@ -127,3 +137,11 @@ $declinedEvents = $conn->query("
 <?php else: ?>
     <p>No declined events.</p>
 <?php endif; ?>
+
+<p style="margin-top: 30px;">
+    <a href="../dashboard.php" class="btn btn-secondary">⬅️ Back to Dashboard</a>
+</p>
+
+</div>
+</body>
+</html>

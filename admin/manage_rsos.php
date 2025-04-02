@@ -1,25 +1,38 @@
+
 <?php
 include '../auth/session.php';
+include '../assets/navbar.php';
+
 include '../db/connect.php';
 
-if ($_SESSION["role"] !== "admin") {
-    echo "Access denied.";
+if ($_SESSION["role"] !== "admin" && $_SESSION["role"] !== "superadmin") {
+    echo "<p class='error'>Access denied.</p>";
     exit;
 }
 
 $admin_id = $_SESSION["uid"];
 $rsos = $conn->query("
-    SELECT RSOs.*, 
-        (SELECT COUNT(*) FROM RSO_Members WHERE RSO_Members.rso_id = RSOs.rso_id) AS member_count,
-        (SELECT COUNT(*) FROM Events WHERE Events.rso_id = RSOs.rso_id) AS event_count
-    FROM RSOs
-    WHERE admin_uid = $admin_id
+SELECT RSOs.*, 
+(SELECT COUNT(*) FROM RSO_Members WHERE RSO_Members.rso_id = RSOs.rso_id) AS member_count,
+(SELECT COUNT(*) FROM Events WHERE Events.rso_id = RSOs.rso_id) AS event_count
+FROM RSOs
+WHERE admin_uid = $admin_id
 ");
 ?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Manage RSOs</title>
+    <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+
+<div class="container">
 
 <h2>My RSOs</h2>
 
-<?php if ($rsos->num_rows > 0): ?>
+<?php if ($rsos && $rsos->num_rows > 0): ?>
     <table border="1" cellpadding="6">
         <tr>
             <th>Name</th>
@@ -37,13 +50,18 @@ $rsos = $conn->query("
                 <td><?= $rso['member_count'] ?></td>
                 <td><?= $rso['event_count'] ?></td>
                 <td>
-                    <a href="rso_details.php?id=<?= $rso['rso_id'] ?>">🔍 Manage</a>
+                    <a href="rso_details.php?id=<?= $rso['rso_id'] ?>" class="btn">🔍 Manage</a>
                 </td>
             </tr>
         <?php endwhile; ?>
     </table>
 <?php else: ?>
-    <p>You haven't created any RSOs.</p>
+    <p>You haven't created any RSOs yet.</p>
 <?php endif; ?>
 
-<p><a href="../dashboard.php">⬅️ Back to Dashboard</a></p>
+<br>
+<a href="../dashboard.php" class="btn btn-secondary">⬅️ Back to Dashboard</a>
+
+</div>
+</body>
+</html>

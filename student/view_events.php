@@ -1,8 +1,12 @@
+
+
 <?php
 include '../auth/session.php';
+include '../assets/navbar.php';
+
 include '../db/connect.php';
 
-if ($_SESSION["role"] !== "student" && $_SESSION["role"] !== "admin") {
+if ($_SESSION["role"] !== "student" && $_SESSION["role"] !== "admin" && $_SESSION["role"] !== "superadmin") {
     echo "Access denied.";
     exit;
 }
@@ -36,7 +40,16 @@ $eventQuery = "
 
 $events = $conn->query($eventQuery);
 ?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Available Events</title>
+    <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
 
+<div class="container">
 <h2>Available Events</h2>
 
 <?php if ($events && $events->num_rows > 0): ?>
@@ -57,15 +70,22 @@ $events = $conn->query($eventQuery);
                 <td><?= $event['event_date'] ?></td>
                 <td><?= $event['start_time'] ?> - <?= $event['end_time'] ?></td>
                 <td><?= ucfirst($event['category']) ?></td>
+                <td><?= htmlspecialchars($event['location_name'] ?? '') ?></td>
                 <td>
-                    <?= htmlspecialchars($event['location_name'] ?? '') ?><br>
-                </td>
-                <td>
-                    <a href="event_details.php?id=<?= $event['event_id'] ?>">🔍 View Details</a>
+                    <a href="event_details.php?id=<?= $event['event_id'] ?>" class="btn">🔍 View Details</a>
                 </td>
             </tr>
         <?php endwhile; ?>
     </table>
+
+    <p>
+        <a href="../dashboard.php" class="btn btn-secondary">⬅️ Back to Dashboard</a>
+    </p>
+
 <?php else: ?>
     <p>No events available.</p>
 <?php endif; ?>
+
+</div>
+</body>
+</html>

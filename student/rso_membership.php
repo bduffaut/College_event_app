@@ -1,8 +1,12 @@
+
+
 <?php
 include '../auth/session.php';
+include '../assets/navbar.php';
+
 include '../db/connect.php';
 
-if ($_SESSION["role"] !== "student") {
+if ($_SESSION["role"] !== "student" ) {
     echo "Access denied.";
     exit;
 }
@@ -18,15 +22,14 @@ $university_id = $user["university_id"];
 if (isset($_GET['join'])) {
     $rso_id = intval($_GET['join']);
 
-    // Make sure RSO belongs to student's university
     $rsoCheck = $conn->query("SELECT university_id FROM rsos WHERE rso_id = $rso_id");
     if ($rsoCheck && $rsoCheck->num_rows > 0) {
         $rso_univ = $rsoCheck->fetch_assoc()["university_id"];
         if ($rso_univ == $university_id) {
             $conn->query("INSERT IGNORE INTO rso_members (rso_id, user_id) VALUES ($rso_id, $uid)");
-            echo "<p>✅ Joined RSO ID $rso_id!</p>";
+            echo "<p class='success'>✅ Joined RSO ID $rso_id!</p>";
         } else {
-            echo "<p>❌ You cannot join RSOs outside your university.</p>";
+            echo "<p class='error'>❌ You cannot join RSOs outside your university.</p>";
         }
     }
 }
@@ -35,7 +38,7 @@ if (isset($_GET['join'])) {
 if (isset($_GET['leave'])) {
     $rso_id = intval($_GET['leave']);
     $conn->query("DELETE FROM rso_members WHERE rso_id = $rso_id AND user_id = $uid");
-    echo "<p>🚪 Left RSO ID $rso_id.</p>";
+    echo "<p class='warning'>🚪 Left RSO ID $rso_id.</p>";
 }
 
 // Get all RSOs at the student's university
@@ -46,6 +49,15 @@ $rsos = $conn->query("
     WHERE university_id = $university_id
 ");
 ?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>RSO Memberships</title>
+    <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+<div class="container">
 
 <h2>RSO Memberships</h2>
 
@@ -60,12 +72,11 @@ $rsos = $conn->query("
                 <td><?= htmlspecialchars($rso['name']) ?></td>
                 <td>
                     <?php if ($rso['is_member']): ?>
-                        <a href="?leave=<?= $rso['rso_id'] ?>" onclick="return confirm('Leave this RSO?')">🚪 Leave</a>
+                        <a href="?leave=<?= $rso['rso_id'] ?>" class="btn btn-danger" onclick="return confirm('Leave this RSO?')">🚪 Leave</a>
                     <?php else: ?>
-                        <a href="?join=<?= $rso['rso_id'] ?>" onclick="return confirm('Join this RSO?')">➕ Join</a>
+                        <a href="?join=<?= $rso['rso_id'] ?>" class="btn" onclick="return confirm('Join this RSO?')">➕ Join</a>
                     <?php endif; ?>
-                    |
-                    <a href="rso_details.php?id=<?= $rso['rso_id'] ?>">📄 More Details</a>
+                    <a href="rso_details.php?id=<?= $rso['rso_id'] ?>" class="btn btn-secondary">📄 More Details</a>
                 </td>
             </tr>
         <?php endwhile; ?>
@@ -73,3 +84,7 @@ $rsos = $conn->query("
 <?php else: ?>
     <p>No RSOs available at your university.</p>
 <?php endif; ?>
+
+</div>
+</body>
+</html>

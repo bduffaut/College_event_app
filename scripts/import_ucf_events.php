@@ -1,33 +1,37 @@
 <?php
 include '../db/connect.php';
+include '../config/load_env.php';
+loadEnv();
+$apikey = $_ENV['GOOGLE_MAPS_API_KEY'] ?? null;
 
-// Geocoding helper using OpenStreetMap Nominatim
-function geocodeAddress($address) {
-    $encoded = urlencode($address);
-    $url = "https://nominatim.openstreetmap.org/search?q=$encoded&format=json&limit=1";
-
-    $opts = [
-        "http" => [
-            "method" => "GET",
-            "header" => "User-Agent: CollegeEventsApp/1.0"
-        ]
-    ];
-    $context = stream_context_create($opts);
-    $response = file_get_contents($url, false, $context);
-
-    $data = json_decode($response, true);
-    if (!empty($data) && isset($data[0]["lat"], $data[0]["lon"])) {
-        return [(float)$data[0]["lat"], (float)$data[0]["lon"]];
-    }
-    return [28.6024, -81.2001]; // fallback: center of UCF
+if (!$apikey) {
+    exit("❌ Google Maps API key not found. Check .env setup.");
+} else {
+    echo "<p style='color:green;'>✅ Google Maps API key loaded: " . htmlspecialchars(substr($apikey, 0, 10)) . "****</p>";
 }
 
-// Load the UCF event feed
+// Places API helper
+function geocodeWithPlaces($locationName, $apikey) {
+    $query = urlencode("UCF " . $locationName); // Prepend UCF for better accuracy
+    $url = "https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=$query&inputtype=textquery&fields=geometry&key=$apikey";
+
+    $response = file_get_contents($url);
+    $data = json_decode($response, true);
+
+    if (!empty($data['candidates']) && isset($data['candidates'][0]['geometry']['location'])) {
+        $loc = $data['candidates'][0]['geometry']['location'];
+        return [(float)$loc['lat'], (float)$loc['lng']];
+    } else {
+        echo "<p style='color:orange;'>⚠️ Places API could not find location: $locationName. Defaulting to UCF center.</p>";
+        return [28.6024, -81.2001]; // fallback to UCF
+    }
+}
+
+// Load UCF feed
 $feed_url = 'https://events.ucf.edu/feed.xml';
 $xml = @simplexml_load_file($feed_url);
-
 if (!$xml || !isset($xml->event)) {
-    exit("❌ Failed to load or parse feed properly.");
+    exit("❌ Failed to load or parse feed.");
 }
 
 foreach ($xml->event as $event) {
@@ -39,29 +43,31 @@ foreach ($xml->event as $event) {
     $start_time = date('H:i:s', strtotime((string) $event->start_date));
     $end_time = date('H:i:s', strtotime((string) $event->end_date));
 
-    // Check for duplicate event (same name + date)
+    // Check for duplicate
     $dupCheck = $conn->prepare("SELECT event_id FROM events WHERE name = ? AND event_date = ?");
     $dupCheck->bind_param("ss", $title, $start_date);
     $dupCheck->execute();
     $dupCheck->store_result();
     if ($dupCheck->num_rows > 0) {
         $dupCheck->close();
-        continue; // Skip duplicate
+        continue;
     }
     $dupCheck->close();
 
-    // Geocode location name
-    [$lat, $lng] = geocodeAddress($location_name);
-    sleep(1); // Be polite to the API
+    $location_id = null;
 
-    // Insert location
-    $locStmt = $conn->prepare("INSERT INTO locations (name, address, latitude, longitude) VALUES (?, ?, ?, ?)");
-    $locStmt->bind_param("ssdd", $location_name, $location_name, $lat, $lng); // using location_name for address too
-    $locStmt->execute();
-    $location_id = $locStmt->insert_id;
-    $locStmt->close();
+    if (!empty($location_name)) {
+        [$lat, $lng] = geocodeWithPlaces($location_name, $apikey);
+        sleep(1); // Respect API usage limits
 
-    // Defaults
+        $locStmt = $conn->prepare("INSERT INTO locations (name, address, latitude, longitude) VALUES (?, ?, ?, ?)");
+        $locStmt->bind_param("ssdd", $location_name, $location_name, $lat, $lng);
+        if ($locStmt->execute()) {
+            $location_id = $locStmt->insert_id;
+        }
+        $locStmt->close();
+    }
+
     $category = "UCF Feed";
     $event_type = "public";
     $university_id = 1;
@@ -69,7 +75,6 @@ foreach ($xml->event as $event) {
     $approved = 1;
     $status = "approved";
 
-    // Insert event
     $stmt = $conn->prepare("INSERT INTO events 
         (name, description, category, event_type, university_id, rso_id, event_date, start_time, end_time, location_id, contact_email, contact_phone, approved, status)
         VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)");
@@ -79,5 +84,5 @@ foreach ($xml->event as $event) {
     $stmt->close();
 }
 
-echo "✅ UCF events imported with geocoded locations!";
+echo "<p style='color:green;'>✅ Events imported using Google <strong>Places</strong> API geocoding!</p>";
 ?>

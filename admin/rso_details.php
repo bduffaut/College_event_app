@@ -1,5 +1,8 @@
+
 <?php
 include '../auth/session.php';
+include '../assets/navbar.php';
+
 include '../db/connect.php';
 
 if ($_SESSION["role"] !== "admin") {
@@ -31,7 +34,7 @@ if (!$rso || $rso['admin_uid'] != $_SESSION["uid"]) {
 if (isset($_GET['remove_user']) && is_numeric($_GET['remove_user'])) {
     $remove_id = intval($_GET['remove_user']);
     $conn->query("DELETE FROM RSO_Members WHERE rso_id = $rso_id AND user_id = $remove_id");
-    echo "<p>✅ Member removed.</p>";
+    echo "<p class='success'>✅ Member removed.</p>";
 }
 
 // Handle adding a new member
@@ -41,9 +44,9 @@ if ($_SERVER["REQUEST_METHOD"] === "POST" && isset($_POST['email'])) {
     if ($userRes && $userRes->num_rows > 0) {
         $uid = $userRes->fetch_assoc()['UID'];
         $conn->query("INSERT IGNORE INTO RSO_Members (rso_id, user_id) VALUES ($rso_id, $uid)");
-        echo "<p>✅ User added to the RSO.</p>";
+        echo "<p class='success'>✅ User added to the RSO.</p>";
     } else {
-        echo "<p>❌ No user found with that email.</p>";
+        echo "<p class='error'>❌ No user found with that email.</p>";
     }
 }
 
@@ -62,6 +65,16 @@ $events = $conn->query("
     ORDER BY event_date DESC
 ");
 ?>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Manage RSO</title>
+    <link rel="stylesheet" href="../assets/styles.css">
+</head>
+<body>
+<div class="container">
+
 
 <h2>Manage RSO: <?= htmlspecialchars($rso['name']) ?></h2>
 <p><strong>Description:</strong> <?= htmlspecialchars($rso['description']) ?></p>
@@ -71,7 +84,7 @@ $events = $conn->query("
 
 <h3>Events by this RSO</h3>
 <?php if ($events->num_rows > 0): ?>
-    <table border="1" cellpadding="6">
+    <table>
         <tr>
             <th>Name</th>
             <th>Date</th>
@@ -85,7 +98,9 @@ $events = $conn->query("
                 <td><?= $event['event_date'] ?></td>
                 <td><?= $event['start_time'] ?> - <?= $event['end_time'] ?></td>
                 <td><?= ucfirst($event['category']) ?></td>
-                <td><a href="../student/event_details.php?id=<?= $event['event_id'] ?>">🔍 View Details</a></td>
+                <td>
+                    <a href="../student/event_details.php?id=<?= $event['event_id'] ?>" class="btn btn-secondary">🔍 View Details</a>
+                </td>
             </tr>
         <?php endwhile; ?>
     </table>
@@ -97,8 +112,7 @@ $events = $conn->query("
 
 <h3>Members (<?= $members->num_rows ?>)</h3>
 <?php if ($members->num_rows > 0): ?>
-
-    <table border="1" cellpadding="6">
+    <table>
         <tr>
             <th>Name</th>
             <th>Email</th>
@@ -109,7 +123,9 @@ $events = $conn->query("
                 <td><?= htmlspecialchars($m['name']) ?></td>
                 <td><?= htmlspecialchars($m['email']) ?></td>
                 <td>
-                    <a href="?id=<?= $rso_id ?>&remove_user=<?= $m['UID'] ?>" onclick="return confirm('Remove this member?')">❌ Remove</a>
+                    <a href="?id=<?= $rso_id ?>&remove_user=<?= $m['UID'] ?>" 
+                       class="btn btn-danger" 
+                       onclick="return confirm('Remove this member?')">❌ Remove</a>
                 </td>
             </tr>
         <?php endwhile; ?>
@@ -120,8 +136,12 @@ $events = $conn->query("
 
 <h4>Add Member by Email</h4>
 <form method="POST">
-    Email: <input type="email" name="email" required>
-    <input type="submit" value="Add Member">
+    <input type="email" name="email" placeholder="user@example.com" required>
+    <button type="submit" class="btn">➕ Add Member</button>
 </form>
 
-<p><a href="manage_rsos.php">⬅️ Back to My RSOs</a></p>
+<p><a href="manage_rsos.php" class="btn btn-secondary">⬅️ Back to My RSOs</a></p>
+
+</div>
+</body>
+</html>
