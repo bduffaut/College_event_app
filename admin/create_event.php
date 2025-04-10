@@ -1,8 +1,6 @@
 <?php
 include '../auth/session.php';
 include '../assets/navbar.php';
-
-
 include '../db/connect.php';
 include '../config/load_env.php';
 loadEnv();
@@ -19,48 +17,82 @@ $univResult = $conn->query("SELECT university_id FROM Users WHERE UID = $admin_i
 $university_id = $univResult->fetch_assoc()["university_id"];
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-    $name = $_POST["name"];
-    $desc = $_POST["description"];
-    $category = $_POST["category"];
-    $event_type = $_POST["event_type"];
-    $event_date = $_POST["event_date"];
-    $start_time = $_POST["start_time"];
-    $end_time = $_POST["end_time"];
-    $contact_email = $_POST["contact_email"];
-    $contact_phone = $_POST["contact_phone"];
-    $rso_id = $_POST["rso_id"] ?: null;
+    $name = $_POST["name"] ?? '';
+    $desc = $_POST["description"] ?? '';
+    $category = $_POST["category"] ?? '';
+    $event_type = $_POST["event_type"] ?? '';
+    $event_date_raw = $_POST["event_date"] ?? '';
+    $start_time_raw = $_POST["start_time"] ?? '';
+    $end_time_raw = $_POST["end_time"] ?? '';
+    $contact_email = $_POST["contact_email"] ?? '';
+    $contact_phone = $_POST["contact_phone"] ?? '';
+    $rso_id = !empty($_POST["rso_id"]) ? $_POST["rso_id"] : null;
 
-    // Location info
-    $location_name = $_POST["location_name"];
-    $latitude = $_POST["latitude"];
-    $longitude = $_POST["longitude"];
+    $location_name = $_POST["location_name"] ?? '';
+    $latitude = floatval($_POST["latitude"] ?? 0);
+    $longitude = floatval($_POST["longitude"] ?? 0);
 
-    // Insert location
-    $locStmt = $conn->prepare("INSERT INTO locations (name, latitude, longitude) VALUES (?, ?, ?)");
-    $locStmt->bind_param("sdd", $location_name, $latitude, $longitude);
-    $locStmt->execute();
-    $location_id = $locStmt->insert_id;
-    $locStmt->close();
+    // Validate and convert date/time
+    $event_date = DateTime::createFromFormat('Y-m-d', $event_date_raw);
+    $start_time = DateTime::createFromFormat('H:i', $start_time_raw);
+    $end_time = DateTime::createFromFormat('H:i', $end_time_raw);
 
-    $approved = ($event_type === 'public' && !$rso_id) ? 0 : 1;
-
-    // Insert event
-    $stmt = $conn->prepare("INSERT INTO events 
-        (name, description, category, event_type, university_id, rso_id, event_date, start_time, end_time, location_id, contact_email, contact_phone, approved, status)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')");
-    $stmt->bind_param("ssssiiisssssi", $name, $desc, $category, $event_type, $university_id, $rso_id,
-        $event_date, $start_time, $end_time, $location_id, $contact_email, $contact_phone, $approved);
-
-    if ($stmt->execute()) {
-        echo "<p class='success'>✅ Event created successfully!</p>";
+    if (!$event_date || !$start_time || !$end_time) {
+        echo "<p class='error'>❌ Invalid date or time format. Please check your inputs.</p>";
     } else {
-        echo "<p class='error'>❌ Error: " . $stmt->error . "</p>";
-    }
+        // Insert location
+        $locStmt = $conn->prepare("INSERT INTO locations (name, latitude, longitude) VALUES (?, ?, ?)");
+        $locStmt->bind_param("sdd", $location_name, $latitude, $longitude);
+        $locStmt->execute();
+        $location_id = $locStmt->insert_id;
+        $locStmt->close();
 
-    $stmt->close();
+        $approved = ($event_type === 'public' && !$rso_id) ? 0 : 1;
+
+        // Prepare final strings
+        $event_date_str = $event_date->format('Y-m-d');
+        $start_time_str = $start_time->format('H:i:s');
+        $end_time_str = $end_time->format('H:i:s');
+
+        // Insert event
+        $stmt = $conn->prepare("INSERT INTO events 
+            (name, description, category, event_type, university_id, rso_id, event_date, start_time, end_time, location_id, contact_email, contact_phone, approved, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'pending')");
+        $stmt->bind_param(
+            "ssssiisssissi",
+            $name,
+            $desc,
+            $category,
+            $event_type,
+            $university_id,
+            $rso_id,
+            $event_date_str,
+            $start_time_str,
+            $end_time_str,
+            $location_id,
+            $contact_email,
+            $contact_phone,
+            $approved
+        );
+
+        try {
+            if ($stmt->execute()) {
+                echo "<p class='success'>✅ Event created successfully for <strong>$event_date_str</strong>!</p>";
+            } else {
+                throw new Exception($stmt->error);
+            }
+        } catch (Exception $e) {
+            if (strpos($e->getMessage(), 'overlaps with an existing event') !== false) {
+                echo "<p class='error'>❌ Cannot create event: Overlaps with another event at that location and time.</p>";
+            } else {
+                echo "<p class='error'>❌ Error: " . htmlspecialchars($e->getMessage()) . "</p>";
+            }
+        }
+
+        $stmt->close();
+    }
 }
 
-// Get RSOs this admin owns
 $rsos = $conn->query("SELECT rso_id, name FROM rsos WHERE admin_uid = $admin_id");
 ?>
 
@@ -123,7 +155,7 @@ $rsos = $conn->query("SELECT rso_id, name FROM rsos WHERE admin_uid = $admin_id"
         <select name="rso_id">
             <option value="">None</option>
             <?php while ($r = $rsos->fetch_assoc()): ?>
-                <option value="<?= $r['rso_id'] ?>"><?= $r['name'] ?></option>
+                <option value="<?= htmlspecialchars($r['rso_id']) ?>"><?= htmlspecialchars($r['name']) ?></option>
             <?php endwhile; ?>
         </select>
 
@@ -140,12 +172,12 @@ $rsos = $conn->query("SELECT rso_id, name FROM rsos WHERE admin_uid = $admin_id"
     <a href="../dashboard.php" class="btn btn-secondary">⬅️ Back to Dashboard</a>
 </div>
 
-<!-- Leaflet.js for map -->
+<!-- Leaflet.js -->
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.3/dist/leaflet.css" />
 <script src="https://unpkg.com/leaflet@1.9.3/dist/leaflet.js"></script>
 
 <script>
-    const map = L.map('map').setView([28.6024, -81.2001], 13); // UCF center default
+    const map = L.map('map').setView([28.6024, -81.2001], 13);
 
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
         attribution: 'Map data © OpenStreetMap contributors'
@@ -156,7 +188,6 @@ $rsos = $conn->query("SELECT rso_id, name FROM rsos WHERE admin_uid = $admin_id"
     map.on('click', function(e) {
         const lat = e.latlng.lat.toFixed(6);
         const lng = e.latlng.lng.toFixed(6);
-
         document.getElementById('latitude').value = lat;
         document.getElementById('longitude').value = lng;
 

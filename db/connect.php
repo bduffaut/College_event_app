@@ -1,7 +1,7 @@
 <?php
 $servername = "localhost";
 $username = "root"; // default for WAMP
-$password = "root";     // default is blank
+$password = "";     // default is blank
 $dbname = "college_events";
 
 $conn = new mysqli($servername, $username, $password, $dbname);

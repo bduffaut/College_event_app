@@ -1,18 +1,37 @@
 <?php
+include '../auth/session.php';
 include '../db/connect.php';
 include '../config/load_env.php';
+
 loadEnv();
 $apikey = $_ENV['GOOGLE_MAPS_API_KEY'] ?? null;
 
-if (!$apikey) {
-    exit("❌ Google Maps API key not found. Check .env setup.");
-} else {
-    echo "<p style='color:green;'>✅ Google Maps API key loaded: " . htmlspecialchars(substr($apikey, 0, 10)) . "****</p>";
+// Only allow superadmin to import
+if ($_SESSION['role'] !== 'superadmin') {
+    echo "<p class='error'>❌ Access denied. Only superadmins can import UCF events.</p>";
+    exit;
 }
 
+echo "<!DOCTYPE html>
+<html lang='en'>
+<head>
+    <meta charset='UTF-8'>
+    <title>Import UCF Events</title>
+    <link rel='stylesheet' href='../assets/styles.css'>
+</head>
+<body>
+<div class='container'>";
+
+if (!$apikey) {
+    echo "<p class='error'>❌ Google Maps API key not found. Check .env setup.</p>";
+    exit;
+} else {
+    // echo "<p class='success'>✅ Google Maps API key loaded: " . htmlspecialchars(substr($apikey, 0, 10)) . "****</p>";
+}
+    
 // Places API helper
 function geocodeWithPlaces($locationName, $apikey) {
-    $query = urlencode("UCF " . $locationName); // Prepend UCF for better accuracy
+    $query = urlencode("UCF " . $locationName); // Improve accuracy
     $url = "https://maps.googleapis.com/maps/api/place/findplacefromtext/json?input=$query&inputtype=textquery&fields=geometry&key=$apikey";
 
     $response = file_get_contents($url);
@@ -22,8 +41,8 @@ function geocodeWithPlaces($locationName, $apikey) {
         $loc = $data['candidates'][0]['geometry']['location'];
         return [(float)$loc['lat'], (float)$loc['lng']];
     } else {
-        echo "<p style='color:orange;'>⚠️ Places API could not find location: $locationName. Defaulting to UCF center.</p>";
-        return [28.6024, -81.2001]; // fallback to UCF
+        echo "<p class='warning'>⚠️ Could not locate '$locationName'. Defaulting to UCF center.</p>";
+        return [28.6024, -81.2001]; // fallback
     }
 }
 
@@ -31,8 +50,11 @@ function geocodeWithPlaces($locationName, $apikey) {
 $feed_url = 'https://events.ucf.edu/feed.xml';
 $xml = @simplexml_load_file($feed_url);
 if (!$xml || !isset($xml->event)) {
-    exit("❌ Failed to load or parse feed.");
+    echo "<p class='error'>❌ Failed to load or parse UCF feed.</p>";
+    exit;
 }
+
+$count = 0;
 
 foreach ($xml->event as $event) {
     $title = trim((string) $event->title);
@@ -43,7 +65,7 @@ foreach ($xml->event as $event) {
     $start_time = date('H:i:s', strtotime((string) $event->start_date));
     $end_time = date('H:i:s', strtotime((string) $event->end_date));
 
-    // Check for duplicate
+    // Skip duplicates
     $dupCheck = $conn->prepare("SELECT event_id FROM events WHERE name = ? AND event_date = ?");
     $dupCheck->bind_param("ss", $title, $start_date);
     $dupCheck->execute();
@@ -58,7 +80,7 @@ foreach ($xml->event as $event) {
 
     if (!empty($location_name)) {
         [$lat, $lng] = geocodeWithPlaces($location_name, $apikey);
-        sleep(1); // Respect API usage limits
+        sleep(1); // be nice to the API
 
         $locStmt = $conn->prepare("INSERT INTO locations (name, address, latitude, longitude) VALUES (?, ?, ?, ?)");
         $locStmt->bind_param("ssdd", $location_name, $location_name, $lat, $lng);
@@ -80,9 +102,14 @@ foreach ($xml->event as $event) {
         VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?, ?, ?, ?)");
     $stmt->bind_param("ssssissssssis", $title, $desc, $category, $event_type, $university_id,
         $start_date, $start_time, $end_time, $location_id, $contact_email, $contact_phone, $approved, $status);
-    $stmt->execute();
+    if ($stmt->execute()) {
+        $count++;
+    }
     $stmt->close();
 }
 
-echo "<p style='color:green;'>✅ Events imported using Google <strong>Places</strong> API geocoding!</p>";
+echo "<p class='success'>✅ Successfully imported <strong>$count</strong> UCF events using Google Places API!</p>";
+echo "<a href='../dashboard.php' class='btn btn-secondary'>⬅️ Back to Dashboard</a>";
+
+echo "</div></body></html>";
 ?>

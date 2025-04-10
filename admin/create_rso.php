@@ -14,19 +14,40 @@ $univQuery = $conn->query("SELECT university_id FROM Users WHERE UID = $uid");
 $university_id = $univQuery->fetch_assoc()["university_id"];
 
 if ($_SERVER["REQUEST_METHOD"] === "POST") {
-    $name = $_POST["name"];
-    $description = $_POST["description"];
+    $name = trim($_POST["name"]);
+    $description = trim($_POST["description"]);
 
-    $stmt = $conn->prepare("INSERT INTO rsos (name, description, university_id, admin_uid) VALUES (?, ?, ?, ?)");
-    $stmt->bind_param("ssii", $name, $description, $university_id, $uid);
+    // Check if the RSO name already exists
+    $checkStmt = $conn->prepare("SELECT rso_id FROM rsos WHERE name = ?");
+    $checkStmt->bind_param("s", $name);
+    $checkStmt->execute();
+    $checkStmt->store_result();
 
-    if ($stmt->execute()) {
-        $successMessage = "✅ RSO '$name' created successfully!";
+    if ($checkStmt->num_rows > 0) {
+        $errorMessage = "❌ An RSO with the name '$name' already exists. Please choose a different name.";
     } else {
-        $errorMessage = "❌ Error: " . $stmt->error;
+        // Insert RSO
+        $stmt = $conn->prepare("INSERT INTO rsos (name, description, university_id, admin_uid) VALUES (?, ?, ?, ?)");
+        $stmt->bind_param("ssii", $name, $description, $university_id, $uid);
+
+        if ($stmt->execute()) {
+            $rso_id = $stmt->insert_id;
+
+            // Automatically add admin as first member
+            $memberStmt = $conn->prepare("INSERT INTO rso_members (rso_id, user_id) VALUES (?, ?)");
+            $memberStmt->bind_param("ii", $rso_id, $uid);
+            $memberStmt->execute();
+            $memberStmt->close();
+
+            $successMessage = "✅ RSO '$name' created successfully and you were added as the first member!";
+        } else {
+            $errorMessage = "❌ Error: " . $stmt->error;
+        }
+
+        $stmt->close();
     }
 
-    $stmt->close();
+    $checkStmt->close();
 }
 ?>
 <!DOCTYPE html>

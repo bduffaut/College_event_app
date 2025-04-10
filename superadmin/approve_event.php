@@ -1,9 +1,6 @@
-
-
 <?php
 include '../auth/session.php';
 include '../assets/navbar.php';
-
 include '../db/connect.php';
 
 if ($_SESSION["role"] !== "superadmin") {
@@ -83,14 +80,14 @@ $declinedEvents = $conn->query("
         </tr>
         <?php while ($event = $pendingEvents->fetch_assoc()): ?>
             <tr>
-                <td><?= htmlspecialchars($event['name']) ?></td>
-                <td><?= $event['event_date'] ?></td>
-                <td><?= $event['start_time'] ?> - <?= $event['end_time'] ?></td>
-                <td><?= htmlspecialchars($event['category']) ?></td>
-                <td><?= htmlspecialchars($event['description']) ?></td>
+                <td><?= htmlspecialchars($event['name'] ?? '') ?></td>
+                <td><?= htmlspecialchars($event['event_date'] ?? '') ?></td>
+                <td><?= htmlspecialchars($event['start_time'] ?? '') ?> - <?= htmlspecialchars($event['end_time'] ?? '') ?></td>
+                <td><?= htmlspecialchars($event['category'] ?? '') ?></td>
+                <td><?= htmlspecialchars($event['description'] ?? '') ?></td>
                 <td>
-                    <?= $event['location_name'] !== null ? htmlspecialchars($event['location_name']) : 'N/A' ?><br>
-                    <?= $event['location_address'] !== null ? htmlspecialchars($event['location_address']) : 'N/A' ?>
+                    <?= htmlspecialchars($event['location_name'] ?? 'N/A') ?><br>
+                    <?= htmlspecialchars($event['location_address'] ?? 'N/A') ?>
                 </td>
                 <td>
                     <a href="?approve=<?= $event['event_id'] ?>" class="btn" onclick="return confirm('Approve this event?')">✅ Approve</a><br>
@@ -119,14 +116,14 @@ $declinedEvents = $conn->query("
         </tr>
         <?php while ($event = $declinedEvents->fetch_assoc()): ?>
             <tr>
-                <td><?= htmlspecialchars($event['name']) ?></td>
-                <td><?= $event['event_date'] ?></td>
-                <td><?= $event['start_time'] ?> - <?= $event['end_time'] ?></td>
-                <td><?= htmlspecialchars($event['category']) ?></td>
-                <td><?= htmlspecialchars($event['description']) ?></td>
+                <td><?= htmlspecialchars($event['name'] ?? '') ?></td>
+                <td><?= htmlspecialchars($event['event_date'] ?? '') ?></td>
+                <td><?= htmlspecialchars($event['start_time'] ?? '') ?> - <?= htmlspecialchars($event['end_time'] ?? '') ?></td>
+                <td><?= htmlspecialchars($event['category'] ?? '') ?></td>
+                <td><?= htmlspecialchars($event['description'] ?? '') ?></td>
                 <td>
-                    <?= htmlspecialchars($event['location_name']) ?><br>
-                    <?= htmlspecialchars($event['location_address']) ?>
+                    <?= htmlspecialchars($event['location_name'] ?? 'N/A') ?><br>
+                    <?= htmlspecialchars($event['location_address'] ?? 'N/A') ?>
                 </td>
                 <td>
                     <a href="?delete=<?= $event['event_id'] ?>" class="btn btn-danger" onclick="return confirm('Delete this declined event?')">🗑 Delete</a>
